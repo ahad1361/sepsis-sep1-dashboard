@@ -17,11 +17,11 @@ DATA_DIR = Path(__file__).parent.parent / "data"
 # CMS Care Compare download endpoints (updated quarterly; see data.cms.gov if these change)
 CMS_TIMELY_CARE_URL = (
     "https://data.cms.gov/provider-data/sites/default/files/resources/"
-    "f31ab9d1-e7fb-4ea8-aff2-e00bdfa7cef3/Timely_and_Effective_Care-Hospital.csv"
+    "0437b5494ac61507ad90f2af6b8085a7_1777413965/Timely_and_Effective_Care-Hospital.csv"
 )
 CMS_HOSPITAL_INFO_URL = (
     "https://data.cms.gov/provider-data/sites/default/files/resources/"
-    "57ede979-1e72-452a-9e52-5b68-82d5-acaa/Hospital_General_Information.csv"
+    "893c372430d9d71a1c52737d01239d47_1777413958/Hospital_General_Information.csv"
 )
 
 # Lat/lon centroids for all US states and territories used as coordinate fallback
@@ -65,10 +65,13 @@ _COLUMN_MAP = {
     "ZIP Code": "zip_code",
     "County/Parish": "county",
     "Phone Number": "phone",
+    "Telephone Number": "phone",
     "Measure ID": "measure_id",
     "Measure Name": "measure_name",
+    "Condition": "condition",
     "Compared to National": "compared_to_national",
     "Denominator": "denominator",
+    "Sample": "denominator",
     "Score": "score",
     "Footnote": "footnote",
     "Start Date": "start_date",
