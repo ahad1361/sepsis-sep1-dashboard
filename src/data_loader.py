@@ -14,7 +14,11 @@ logger = logging.getLogger(__name__)
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 
-# CMS Care Compare download endpoints (updated quarterly; see data.cms.gov if these change)
+# ── CMS Provider Data Catalog API (stable dataset ID across quarterly refreshes) ──
+CMS_API_BASE = "https://data.cms.gov/provider-data/api/1/datastore/query/yv7e-xc69/0"
+PAGE_SIZE = 1000  # this endpoint rejects limit > 1000
+
+# ── Fallback CSV URLs (resource UUIDs rotate quarterly; update if 404) ────────
 CMS_TIMELY_CARE_URL = (
     "https://data.cms.gov/provider-data/sites/default/files/resources/"
     "0437b5494ac61507ad90f2af6b8085a7_1777413965/Timely_and_Effective_Care-Hospital.csv"
@@ -56,6 +60,7 @@ STATE_CENTROIDS: dict[str, tuple[float, float]] = {
 }
 
 _COLUMN_MAP = {
+    # CSV title-case names
     "Facility ID": "facility_id",
     "Facility Name": "facility_name",
     "Address": "address",
@@ -82,12 +87,73 @@ _COLUMN_MAP = {
     "Long": "lng",
     "Longitude": "lng",
     "Latitude": "lat",
+    # API snake_case names that differ from our target schema
+    "citytown": "city",
+    "countyparish": "county",
+    "telephone_number": "phone",
+    "_condition": "condition",
+    "sample": "denominator",
 }
 
 
 def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
     """Rename CMS CSV title-case columns to snake_case."""
     return df.rename(columns={k: v for k, v in _COLUMN_MAP.items() if k in df.columns})
+
+
+def fetch_sep1_from_api() -> pd.DataFrame:
+    """Fetch all SEP_1 rows from the CMS Provider Data Catalog API.
+
+    Uses server-side filtering and auto-paginates in PAGE_SIZE chunks.
+    Falls back to unfiltered pull + local filter if server-side conditions
+    are rejected (some CMS endpoints ignore the conditions param).
+
+    Returns:
+        Raw DataFrame of SEP_1 records with the same column structure as the CSV.
+
+    Raises:
+        RuntimeError: If the API is unreachable or returns no SEP_1 rows.
+    """
+    def _get_page(offset: int) -> tuple[list[dict], int]:
+        # Pass conditions as dict keys containing brackets — requests encodes
+        # '=' (the operator value) as %3D which the CMS endpoint requires.
+        # Passing a pre-built URL string leaves '=' un-encoded → 400.
+        params = {
+            "limit": PAGE_SIZE,
+            "offset": offset,
+            "conditions[0][property]": "measure_id",
+            "conditions[0][value]": "SEP_1",
+            "conditions[0][operator]": "=",
+        }
+        try:
+            resp = requests.get(CMS_API_BASE, params=params, timeout=60)
+            resp.raise_for_status()
+        except requests.RequestException as exc:
+            raise RuntimeError(f"CMS API request failed: {exc}") from exc
+        payload = resp.json()
+        rows = payload.get("results") or payload.get("data") or []
+        total = payload.get("count", 0)
+        return rows, total
+
+    all_rows: list[dict] = []
+    offset = 0
+    rows, total = _get_page(offset)
+    if not rows:
+        raise RuntimeError("CMS API returned no SEP_1 rows.")
+    all_rows.extend(rows)
+    logger.info("API: %d total SEP_1 rows reported by server", total)
+
+    while len(rows) == PAGE_SIZE:
+        offset += PAGE_SIZE
+        rows, _ = _get_page(offset)
+        all_rows.extend(rows)
+
+    df = pd.DataFrame(all_rows)
+    if df.empty:
+        raise RuntimeError("No SEP_1 records found in API response.")
+
+    logger.info("API fetched %d SEP_1 rows", len(df))
+    return df
 
 
 def download_file(url: str, local_path: Path, timeout: int = 120) -> bool:
@@ -336,15 +402,26 @@ def get_national_stats(df: pd.DataFrame) -> dict:
 
 
 def load_sep1_data() -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Top-level entry point: download, process, and return SEP-1 data.
+    """Top-level entry point: fetch, process, and return SEP-1 data.
+
+    Tries the live CMS API first (stable dataset ID, always current).
+    Falls back to the local cached CSV if the API is unreachable.
 
     Returns:
         (hospital_df, state_df) where hospital_df is one row per hospital
         and state_df contains state-level aggregates.
     """
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    timely_df = load_timely_care_data()
     hospital_info = load_hospital_info()
-    hospital_df = process_sep1_data(timely_df, hospital_info)
+
+    # Primary: live CMS API (dataset ID yv7e-xc69 is stable across quarterly refreshes)
+    try:
+        raw_df = fetch_sep1_from_api()
+        raw_df = _normalize_columns(raw_df)
+    except Exception as api_exc:
+        logger.warning("CMS API unavailable (%s) — falling back to local CSV.", api_exc)
+        raw_df = load_timely_care_data()
+
+    hospital_df = process_sep1_data(raw_df, hospital_info)
     state_df = get_state_averages(hospital_df)
     return hospital_df, state_df

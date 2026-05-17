@@ -52,7 +52,7 @@ st.markdown(
 
 
 # ── data ──────────────────────────────────────────────────────────────────────
-@st.cache_data(show_spinner="Fetching CMS Care Compare data…")
+@st.cache_data(show_spinner="Fetching CMS Care Compare data…", ttl=86400)
 def _load() -> tuple[pd.DataFrame, pd.DataFrame]:
     return load_sep1_data()
 
@@ -95,20 +95,29 @@ def main() -> None:
         return
 
     stats = get_national_stats(hospital_df)
+    all_states = sorted(hospital_df["state"].dropna().unique())
+
+    # ── session state init (must happen before sidebar renders) ───────────────
+    if "state_filter" not in st.session_state:
+        st.session_state["state_filter"] = []
 
     # ── sidebar filters ───────────────────────────────────────────────────────
     with st.sidebar:
         st.header("Filters")
 
-        all_states = sorted(hospital_df["state"].dropna().unique())
         selected_states: list[str] = st.multiselect(
             "State(s)",
             options=all_states,
-            default=[],
-            placeholder="All states",
+            key="state_filter",
+            placeholder="All states — or click a state on the map",
         )
 
-        score_range: tuple[int, int] = st.slider(
+        if selected_states:
+            if st.button("✕ Clear state filter", use_container_width=True):
+                st.session_state["state_filter"] = []
+                st.rerun()
+
+        score_range: tuple[int, int] = st.slider(  # type: ignore[assignment]
             "SEP-1 Score Range (%)",
             min_value=0,
             max_value=100,
@@ -167,14 +176,35 @@ def main() -> None:
     # ── map ───────────────────────────────────────────────────────────────────
     st.subheader("Hospital Compliance Map")
     st.caption(
-        "Each dot represents one hospital. "
-        "🟢 ≥80% (Excellent) · 🟡 50–79% (Moderate) · 🔴 <50% (Poor) · ⚫ Not Reported. "
-        "Hospitals without exact coordinates are plotted near their state centroid."
+        "State shading = average SEP-1 score. "
+        "Dots = individual hospitals: 🟢 ≥80% · 🟡 50–79% · 🔴 <50% · ⚫ not reported. "
+        "**Click any state** to filter the whole dashboard to that state."
     )
-    st.plotly_chart(
-        create_hospital_map(filt, filt_states, selected_states or None, min_sample),
+    map_fig = create_hospital_map(filt, state_df, selected_states or None, min_sample)
+    map_event = st.plotly_chart(
+        map_fig,
         use_container_width=True,
+        key="hospital_map",
+        on_select="rerun",
     )
+
+    # Handle map click → update state filter
+    try:
+        pts = (map_event.selection or {}).get("points", [])
+        for pt in pts:
+            # Choropleth click → pt["location"] is the state abbreviation
+            clicked = pt.get("location")
+            # Scattergeo click → state stored in customdata
+            if not clicked:
+                cd = pt.get("customdata")
+                clicked = cd if isinstance(cd, str) else (cd[0] if isinstance(cd, (list, tuple)) and cd else None)
+            if clicked and clicked in all_states:
+                if st.session_state["state_filter"] != [clicked]:
+                    st.session_state["state_filter"] = [clicked]
+                    st.rerun()
+                break
+    except Exception:
+        pass
 
     # ── charts ────────────────────────────────────────────────────────────────
     chart_col, hist_col = st.columns([3, 2])

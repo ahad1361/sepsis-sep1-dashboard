@@ -90,6 +90,44 @@ def create_hospital_map(
 
     fig = go.Figure()
 
+    # Layer 1: State choropleth background (colour = state average SEP-1 score)
+    display_state_df = (
+        state_df[state_df["state"].isin(selected_states)]
+        if selected_states
+        else state_df
+    )
+    if not display_state_df.empty:
+        fig.add_trace(go.Choropleth(
+            locations=display_state_df["state"],
+            z=display_state_df["avg_score"],
+            locationmode="USA-states",
+            colorscale=[
+                [0.00, "#7f1d1d"],
+                [0.25, "#e74c3c"],
+                [0.50, "#f39c12"],
+                [0.75, "#2ecc71"],
+                [1.00, "#065f46"],
+            ],
+            zmin=0,
+            zmax=100,
+            colorbar=dict(
+                title=dict(text="State Avg<br>SEP-1 (%)", font=dict(size=11)),
+                thickness=14,
+                len=0.55,
+                x=1.01,
+                ticksuffix="%",
+                bgcolor="rgba(14,17,23,0.7)",
+            ),
+            hovertemplate=(
+                "<b>%{location}</b><br>"
+                "State avg SEP-1: %{z:.1f}%<br>"
+                "<i>Click to filter</i><extra></extra>"
+            ),
+            showlegend=False,
+            name="State Average",
+        ))
+
+    # Layer 2: Hospitals with no reported score (grey dots)
     if not unscored.empty:
         fig.add_trace(go.Scattergeo(
             lat=unscored["lat"],
@@ -97,12 +135,16 @@ def create_hospital_map(
             mode="markers",
             marker=dict(size=4, color=_C["no_data"], opacity=0.35),
             text=_hover_text(unscored),
+            customdata=unscored["state"].values if "state" in unscored.columns else None,
             hoverinfo="text",
             name="No Data",
         ))
 
+    # Layer 3: Scored hospitals grouped by compliance tier
     for category in ["Poor (<50%)", "Moderate (50–79%)", "Excellent (≥80%)"]:
-        cat_df = scored[scored.get("score_category", pd.Series(dtype=str)) == category]
+        if "score_category" not in scored.columns:
+            continue
+        cat_df = scored[scored["score_category"] == category]
         if cat_df.empty:
             continue
         fig.add_trace(go.Scattergeo(
@@ -110,18 +152,22 @@ def create_hospital_map(
             lon=cat_df["lng"],
             mode="markers",
             marker=dict(
-                size=7,
+                size=8,
                 color=CATEGORY_COLORS[category],
-                opacity=0.78,
-                line=dict(width=0.5, color="white"),
+                opacity=0.85,
+                line=dict(width=0.6, color="white"),
             ),
             text=_hover_text(cat_df),
+            customdata=cat_df["state"].values if "state" in cat_df.columns else None,
             hoverinfo="text",
             name=category,
         ))
 
     fig.update_layout(
-        title=dict(text="Hospital SEP-1 Compliance — United States", font=dict(size=15)),
+        title=dict(
+            text="Hospital SEP-1 Compliance — Click a state to filter",
+            font=dict(size=15),
+        ),
         geo=dict(
             scope="usa",
             projection_type="albers usa",
@@ -130,12 +176,25 @@ def create_hospital_map(
             showlakes=True,
             lakecolor="#0d1b2a",
             showframe=False,
+            showcoastlines=True,
+            coastlinecolor="#2d3748",
+            showsubunits=True,
+            subunitcolor="#2d3748",
             bgcolor=_TRANSPARENT,
         ),
-        legend=dict(orientation="h", yanchor="bottom", y=0.02, xanchor="right", x=1),
-        margin=dict(l=0, r=0, t=45, b=0),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=0.02,
+            xanchor="right",
+            x=0.98,
+            bgcolor="rgba(14,17,23,0.7)",
+            bordercolor="#2d3748",
+            borderwidth=1,
+        ),
+        margin=dict(l=0, r=0, t=50, b=0),
         template=_TEMPLATE,
-        height=520,
+        height=580,
         paper_bgcolor=_TRANSPARENT,
         plot_bgcolor=_TRANSPARENT,
     )
@@ -169,13 +228,22 @@ def create_state_bar_chart(state_df: pd.DataFrame, national_avg: float) -> go.Fi
         hovertemplate="<b>%{y}</b><br>Avg SEP-1: %{x:.1f}%<extra></extra>",
     ))
 
-    fig.add_vline(
+    fig.add_vline(x=national_avg, line_dash="dash", line_color=_C["ref_line"], line_width=1.5)
+    # Annotation placed above the plot area so it never overlaps bars
+    fig.add_annotation(
         x=national_avg,
-        line_dash="dash",
-        line_color=_C["ref_line"],
-        annotation_text=f"National avg: {national_avg:.1f}%",
-        annotation_position="top right",
-        annotation_font_color=_C["ref_line"],
+        xref="x",
+        y=1.0,
+        yref="paper",
+        text=f"▼ Natl avg: {national_avg:.1f}%",
+        showarrow=False,
+        font=dict(color=_C["ref_line"], size=11),
+        xanchor="center",
+        yanchor="bottom",
+        bgcolor="rgba(14,17,23,0.88)",
+        bordercolor=_C["ref_line"],
+        borderwidth=1,
+        borderpad=5,
     )
 
     chart_height = min(max(380, len(df) * 22), 1400)
@@ -185,7 +253,7 @@ def create_state_bar_chart(state_df: pd.DataFrame, national_avg: float) -> go.Fi
         yaxis_title=None,
         template=_TEMPLATE,
         height=chart_height,
-        margin=dict(l=20, r=70, t=50, b=40),
+        margin=dict(l=20, r=70, t=75, b=40),
         paper_bgcolor=_TRANSPARENT,
         plot_bgcolor=_TRANSPARENT,
         showlegend=False,
