@@ -10,12 +10,14 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src.data_loader import get_national_stats, load_sep1_data
+from src.data_loader import get_advanced_stats, get_national_stats, load_sep1_data
 from src.visualizations import (
     create_hospital_map,
     create_score_histogram,
     create_state_bar_chart,
+    create_state_disparity_chart,
     create_top_bottom_table,
+    create_volume_score_scatter,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -31,20 +33,118 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    [data-testid="stAppViewContainer"],
+    [data-testid="stSidebar"],
+    .stMarkdown, .stDataFrame, h1, h2, h3, p, label {
+        font-family: 'Inter', sans-serif !important;
+    }
+
+    /* ── KPI cards ─────────────────────────────────────────── */
     .kpi-card {
-        background: #1e2329;
-        border-radius: 10px;
-        padding: 20px 24px;
+        background: linear-gradient(145deg, #161c2d 0%, #1c2340 100%);
+        border-radius: 14px;
+        padding: 18px 20px 16px;
         text-align: center;
-        border: 1px solid #2d3748;
-        height: 110px;
+        border: 1px solid rgba(255,255,255,0.06);
+        min-height: 120px;
         display: flex;
         flex-direction: column;
         justify-content: center;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04);
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
     }
-    .kpi-label { font-size: 0.75em; color: #a0aec0; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px; }
-    .kpi-value { font-size: 2.1em; font-weight: 700; color: #f7fafc; line-height: 1.1; }
-    .kpi-sub   { font-size: 0.73em; color: #718096; margin-top: 4px; }
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 3px;
+        background: var(--kpi-accent, #5b9bd5);
+        border-radius: 14px 14px 0 0;
+    }
+    .kpi-card::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse at 50% -10%, rgba(255,255,255,0.05) 0%, transparent 65%);
+        pointer-events: none;
+    }
+    .kpi-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+    .kpi-icon  { font-size: 1.25em; line-height: 1; margin-bottom: 4px; }
+    .kpi-label {
+        font-size: 0.63em;
+        color: #7a8899;
+        text-transform: uppercase;
+        letter-spacing: 0.13em;
+        margin-bottom: 5px;
+        font-weight: 600;
+    }
+    .kpi-value {
+        font-size: 2.1em;
+        font-weight: 800;
+        color: var(--kpi-accent, #f0f4f8);
+        line-height: 1.05;
+        font-variant-numeric: tabular-nums;
+    }
+    .kpi-sub { font-size: 0.66em; color: #4d5c70; margin-top: 5px; }
+
+    /* ── Insight cards ────────────────────────────────────── */
+    .insight-card {
+        background: linear-gradient(145deg, #161c2d 0%, #1c2340 100%);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-left: 3px solid var(--ins-accent, #5b9bd5);
+        border-radius: 12px;
+        padding: 18px 22px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+        height: 100%;
+    }
+    .insight-eyebrow {
+        font-size: 0.62em;
+        color: #7a8899;
+        text-transform: uppercase;
+        letter-spacing: 0.13em;
+        font-weight: 600;
+        margin-bottom: 8px;
+    }
+    .insight-val {
+        font-size: 1.9em;
+        font-weight: 800;
+        color: var(--ins-accent, #5b9bd5);
+        line-height: 1.1;
+        margin-bottom: 8px;
+        font-variant-numeric: tabular-nums;
+    }
+    .insight-body {
+        font-size: 0.75em;
+        color: #5a6e82;
+        line-height: 1.6;
+    }
+    .insight-body b { color: #8a9ab0; }
+
+    /* ── Section headers ──────────────────────────────────── */
+    .sec-header {
+        border-bottom: 1px solid rgba(255,255,255,0.07);
+        padding-bottom: 10px;
+        margin: 28px 0 14px;
+    }
+    .sec-header h3 {
+        font-size: 1.0em;
+        font-weight: 700;
+        color: #c8d3e0;
+        letter-spacing: 0.03em;
+        margin: 0 0 2px;
+    }
+    .sec-header p {
+        font-size: 0.75em;
+        color: #4d5c70;
+        margin: 0;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -57,13 +157,43 @@ def _load() -> tuple[pd.DataFrame, pd.DataFrame]:
     return load_sep1_data()
 
 
-def _kpi(label: str, value: str, sub: str = "") -> None:
+# ── UI helpers ────────────────────────────────────────────────────────────────
+def _score_color(score: float) -> str:
+    if score >= 70:
+        return "#2ecc71"
+    if score >= 50:
+        return "#f39c12"
+    return "#e74c3c"
+
+
+def _kpi(label: str, value: str, sub: str = "", icon: str = "", accent: str = "#5b9bd5") -> None:
+    icon_html = f'<div class="kpi-icon">{icon}</div>' if icon else ""
     st.markdown(
-        f"""<div class="kpi-card">
+        f"""<div class="kpi-card" style="--kpi-accent:{accent}">
+              {icon_html}
               <div class="kpi-label">{label}</div>
               <div class="kpi-value">{value}</div>
               <div class="kpi-sub">{sub}</div>
             </div>""",
+        unsafe_allow_html=True,
+    )
+
+
+def _insight(eyebrow: str, value: str, body: str, accent: str = "#5b9bd5") -> None:
+    st.markdown(
+        f"""<div class="insight-card" style="--ins-accent:{accent}">
+              <div class="insight-eyebrow">{eyebrow}</div>
+              <div class="insight-val">{value}</div>
+              <div class="insight-body">{body}</div>
+            </div>""",
+        unsafe_allow_html=True,
+    )
+
+
+def _sec(title: str, subtitle: str = "") -> None:
+    sub_html = f"<p>{subtitle}</p>" if subtitle else ""
+    st.markdown(
+        f'<div class="sec-header"><h3>{title}</h3>{sub_html}</div>',
         unsafe_allow_html=True,
     )
 
@@ -95,13 +225,14 @@ def main() -> None:
         return
 
     stats = get_national_stats(hospital_df)
+    adv = get_advanced_stats(hospital_df)
     all_states = sorted(hospital_df["state"].dropna().unique())
 
-    # ── session state init (must happen before sidebar renders) ───────────────
+    # ── session state init ────────────────────────────────────────────────────
     if "state_filter" not in st.session_state:
         st.session_state["state_filter"] = []
 
-    # ── sidebar filters ───────────────────────────────────────────────────────
+    # ── sidebar ───────────────────────────────────────────────────────────────
     with st.sidebar:
         st.header("Filters")
 
@@ -117,7 +248,7 @@ def main() -> None:
                 st.session_state["state_filter"] = []
                 st.rerun()
 
-        score_range: tuple[int, int] = st.slider(  # type: ignore[assignment]
+        score_range: tuple[int, int] = st.slider(
             "SEP-1 Score Range (%)",
             min_value=0,
             max_value=100,
@@ -135,9 +266,14 @@ def main() -> None:
         )
 
         st.markdown("---")
+        reporting_pct = (
+            round(stats["reporting_hospitals"] / stats["total_hospitals"] * 100, 1)
+            if stats["total_hospitals"] > 0
+            else 0.0
+        )
         st.caption(
-            f"**{stats['reporting_hospitals']:,}** hospitals reporting  \n"
-            f"**{stats['total_hospitals']:,}** total in dataset"
+            f"**{stats['reporting_hospitals']:,}** of **{stats['total_hospitals']:,}** hospitals "
+            f"reporting ({reporting_pct}%)"
         )
 
     # ── apply filters ─────────────────────────────────────────────────────────
@@ -156,29 +292,72 @@ def main() -> None:
 
     filt_states = state_df[state_df["state"].isin(filt["state"].unique())]
 
-    # ── KPI cards ─────────────────────────────────────────────────────────────
-    k1, k2, k3, k4 = st.columns(4)
-    with k1:
-        _kpi("National Average", f"{stats['national_avg']}%", "SEP-1 compliance")
-    with k2:
+    # ── KPI row 1 ─────────────────────────────────────────────────────────────
+    _sec("National Overview")
+    r1c1, r1c2, r1c3 = st.columns(3)
+    natl_color = _score_color(stats["national_avg"])
+    with r1c1:
+        _kpi(
+            "National Average",
+            f"{stats['national_avg']}%",
+            "Simple avg — equal weight per hospital",
+            icon="📊",
+            accent=natl_color,
+        )
+    with r1c2:
+        w_avg = adv["weighted_national_avg"]
+        delta = w_avg - stats["national_avg"]
+        delta_str = f"{'▲' if delta > 0 else '▼'} {abs(delta):.1f}pp vs simple avg" if delta != 0 else "same as simple avg"
+        _kpi(
+            "Volume-Weighted Avg",
+            f"{w_avg}%",
+            delta_str,
+            icon="⚖️",
+            accent=_score_color(w_avg),
+        )
+    with r1c3:
         _kpi(
             "Hospitals Reporting",
             f"{stats['reporting_hospitals']:,}",
-            f"of {stats['total_hospitals']:,} total",
+            f"of {stats['total_hospitals']:,} in dataset",
+            icon="🏥",
+            accent="#5b9bd5",
         )
-    with k3:
-        _kpi("Top State", stats["best_state"], f"{stats['best_score']}% avg")
-    with k4:
-        _kpi("Lowest State", stats["worst_state"], f"{stats['worst_score']}% avg")
 
-    st.markdown("---")
+    st.markdown('<div style="height:10px"></div>', unsafe_allow_html=True)
+
+    # ── KPI row 2 ─────────────────────────────────────────────────────────────
+    r2c1, r2c2, r2c3 = st.columns(3)
+    with r2c1:
+        _kpi(
+            "Top State",
+            stats["best_state"],
+            f"{stats['best_score']}% avg",
+            icon="🥇",
+            accent="#2ecc71",
+        )
+    with r2c2:
+        _kpi(
+            "Lowest State",
+            stats["worst_state"],
+            f"{stats['worst_score']}% avg",
+            icon="⚠️",
+            accent="#e74c3c",
+        )
+    with r2c3:
+        missed = adv["estimated_missed_bundles"]
+        _kpi(
+            "Est. Incomplete Bundles",
+            f"~{missed:,}",
+            "patient-episodes without full SEP-1",
+            icon="🚨",
+            accent="#e67e22",
+        )
 
     # ── map ───────────────────────────────────────────────────────────────────
-    st.subheader("Hospital Compliance Map")
-    st.caption(
-        "State shading = average SEP-1 score. "
-        "Dots = individual hospitals: 🟢 ≥80% · 🟡 50–79% · 🔴 <50% · ⚫ not reported. "
-        "**Click any state** to filter the whole dashboard to that state."
+    _sec(
+        "Hospital Compliance Map",
+        "State shading = avg SEP-1 score · Dots = individual hospitals · Click any state to filter",
     )
     map_fig = create_hospital_map(filt, state_df, selected_states or None, min_sample)
     map_event = st.plotly_chart(
@@ -192,9 +371,7 @@ def main() -> None:
     try:
         pts = (map_event.selection or {}).get("points", [])
         for pt in pts:
-            # Choropleth click → pt["location"] is the state abbreviation
             clicked = pt.get("location")
-            # Scattergeo click → state stored in customdata
             if not clicked:
                 cd = pt.get("customdata")
                 clicked = cd if isinstance(cd, str) else (cd[0] if isinstance(cd, (list, tuple)) and cd else None)
@@ -206,7 +383,8 @@ def main() -> None:
     except Exception:
         pass
 
-    # ── charts ────────────────────────────────────────────────────────────────
+    # ── performance charts ────────────────────────────────────────────────────
+    _sec("Performance Distribution")
     chart_col, hist_col = st.columns([3, 2])
     with chart_col:
         st.plotly_chart(
@@ -216,8 +394,106 @@ def main() -> None:
     with hist_col:
         st.plotly_chart(create_score_histogram(filt), use_container_width=True)
 
+    # ── deep dive ────────────────────────────────────────────────────────────
+    _sec(
+        "Deep Dive",
+        "Volume vs performance · Within-state inequality",
+    )
+    dd_left, dd_right = st.columns(2)
+    with dd_left:
+        st.plotly_chart(
+            create_volume_score_scatter(filt, stats["national_avg"]),
+            use_container_width=True,
+        )
+    with dd_right:
+        st.plotly_chart(
+            create_state_disparity_chart(filt),
+            use_container_width=True,
+        )
+
+    # ── clinical insights ─────────────────────────────────────────────────────
+    _sec(
+        "Clinical Insights",
+        "Non-obvious findings derived from the data",
+    )
+    ins1, ins2, ins3 = st.columns(3)
+
+    # Insight 1: volume-performance correlation
+    r = adv["volume_score_corr"]
+    if r is None:
+        corr_val_str = "N/A"
+        corr_body = "Insufficient data to compute correlation."
+        corr_color = "#5b9bd5"
+    else:
+        corr_val_str = f"r = {r:+.2f}"
+        if r > 0.25:
+            corr_body = (
+                "Larger-volume hospitals score <b>moderately higher</b>. "
+                "Seeing more sepsis cases appears to reinforce protocol adherence — "
+                "a volume–outcome effect. Still, volume explains only a fraction of the variance."
+            )
+            corr_color = "#2ecc71"
+        elif r > 0.08:
+            corr_body = (
+                "A <b>weak positive</b> relationship: high-volume hospitals have a slight performance edge. "
+                "But most of the variance is unexplained by case volume — "
+                "institutional culture and protocols matter more than throughput."
+            )
+            corr_color = "#27ae60"
+        elif r > -0.08:
+            corr_body = (
+                "Volume is a <b>near-zero predictor</b> of SEP-1 compliance. "
+                "A hospital seeing 20 sepsis cases and one seeing 2,000 are roughly equally likely to complete the bundle — "
+                "protocol culture, not caseload, drives compliance."
+            )
+            corr_color = "#5b9bd5"
+        else:
+            corr_body = (
+                "Counterintuitively, higher-volume hospitals score <b>slightly lower</b>. "
+                "This may reflect more complex patient populations, resource strain at busy centers, "
+                "or documentation challenges at high-throughput facilities."
+            )
+            corr_color = "#e67e22"
+
+    with ins1:
+        _insight(
+            "Volume–Performance Correlation",
+            corr_val_str,
+            corr_body,
+            accent=corr_color,
+        )
+
+    # Insight 2: widest within-state gap
+    state_name = adv["most_disparate_state"]
+    spread_pp = adv["max_intrastate_spread"]
+    with ins2:
+        _insight(
+            "Widest Within-State Gap",
+            f"{state_name}: {spread_pp:.0f} pp",
+            (
+                f"Within <b>{state_name}</b>, the gap between the best and worst hospital's SEP-1 scores "
+                f"is <b>{spread_pp:.0f} percentage points</b>. Patients face dramatically unequal care "
+                "depending on which hospital they reach — even within the same state."
+            ),
+            accent="#e74c3c",
+        )
+
+    # Insight 3: high-impact underperformers
+    n_hi = adv["high_impact_underperformer_count"]
+    with ins3:
+        _insight(
+            "High-Impact Underperformers",
+            f"{n_hi} hospitals",
+            (
+                f"<b>{n_hi}</b> hospitals score below 50% while treating an above-median patient volume. "
+                "These facilities combine the worst compliance with the highest exposure — "
+                "the highest-priority targets for quality improvement intervention."
+            ),
+            accent="#e67e22",
+        )
+
     # ── rankings ──────────────────────────────────────────────────────────────
-    st.subheader("Hospital Rankings")
+    _sec("Hospital Rankings")
     tab_top, tab_bottom, tab_method = st.tabs(
         ["🏆 Top 10", "⚠️ Bottom 10", "📋 Methodology"]
     )
@@ -253,14 +529,25 @@ def main() -> None:
             - **50–79%** — Moderate; room for improvement
             - **<50%** — Poor; significant protocol gaps; heightened CMS scrutiny
 
+            ### Volume-Weighted Average
+            Unlike the simple national average (equal weight per hospital), the **volume-weighted
+            average** weights each hospital by its denominator — the number of eligible sepsis
+            cases. This answers: *"If you were a random sepsis patient, what is the probability
+            your hospital completes the full bundle?"*
+
+            ### Estimated Incomplete Bundles
+            Computed as **Σ (denominator × (1 − score / 100))** across all reporting hospitals.
+            This converts abstract compliance percentages into an estimated count of patient-episodes
+            where the complete bundle was not delivered.
+
             ### Data Limitations
             - Hospitals with **fewer than 25 eligible cases** per quarter may have suppressed
-              scores ("Not Available") to protect statistical reliability.
+              scores to protect statistical reliability.
             - Scores represent **all-or-nothing** bundle compliance: partial completion counts
               as a failure.
             - State averages weight each reporting hospital equally (not by volume).
             - Hospital map coordinates: when exact lat/lng are unavailable, hospitals are
-              plotted near their state centroid with random jitter (indicated by ⚠ in hover).
+              plotted near their state centroid with random jitter (⚠ in hover).
 
             ### Source
             Centers for Medicare & Medicaid Services (CMS) — *Care Compare:

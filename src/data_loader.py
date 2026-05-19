@@ -401,6 +401,65 @@ def get_national_stats(df: pd.DataFrame) -> dict:
     }
 
 
+def get_advanced_stats(df: pd.DataFrame) -> dict:
+    """Non-trivial derived statistics from hospital-level SEP-1 data."""
+    scored = df[df["score"].notna()].copy()
+    with_vol = scored[scored["denominator"].notna()]
+
+    # Volume-weighted national average (patient-eye view: if you were a random sepsis patient,
+    # what is the probability your hospital completes the full bundle?)
+    if not with_vol.empty and with_vol["denominator"].sum() > 0:
+        w_avg = round(
+            (with_vol["score"] * with_vol["denominator"]).sum()
+            / with_vol["denominator"].sum(),
+            1,
+        )
+    else:
+        w_avg = 0.0
+
+    # Estimated patient-episodes that did NOT receive a complete SEP-1 bundle
+    est_missed = (
+        int(((100 - with_vol["score"]) / 100 * with_vol["denominator"]).sum())
+        if not with_vol.empty
+        else 0
+    )
+
+    # Pearson r: does seeing more sepsis cases make a hospital better at treating it?
+    if len(with_vol) >= 10:
+        corr_val = float(with_vol[["denominator", "score"]].corr().iloc[0, 1])
+    else:
+        corr_val = float("nan")
+
+    # Within-state score spread (max − min per state, states with ≥3 hospitals)
+    if not scored.empty:
+        state_spread = (
+            scored.groupby("state")["score"]
+            .agg(lambda x: x.max() - x.min() if len(x) >= 3 else np.nan)
+            .dropna()
+        )
+        most_disparate = str(state_spread.idxmax()) if not state_spread.empty else "N/A"
+        max_spread = round(float(state_spread.max()), 1) if not state_spread.empty else 0.0
+    else:
+        most_disparate, max_spread = "N/A", 0.0
+
+    # High-impact underperformers: score < 50% AND above-median patient volume
+    n_high_impact = 0
+    if not with_vol.empty:
+        med_vol = with_vol["denominator"].median()
+        n_high_impact = int(
+            ((with_vol["score"] < 50) & (with_vol["denominator"] > med_vol)).sum()
+        )
+
+    return {
+        "weighted_national_avg": w_avg,
+        "estimated_missed_bundles": est_missed,
+        "volume_score_corr": round(corr_val, 2) if not pd.isna(corr_val) else None,
+        "most_disparate_state": most_disparate,
+        "max_intrastate_spread": max_spread,
+        "high_impact_underperformer_count": n_high_impact,
+    }
+
+
 def load_sep1_data() -> tuple[pd.DataFrame, pd.DataFrame]:
     """Top-level entry point: fetch, process, and return SEP-1 data.
 

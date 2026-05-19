@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -342,3 +343,144 @@ def create_top_bottom_table(
         return out
 
     return _format(scored.nlargest(n, "score")), _format(scored.nsmallest(n, "score"))
+
+
+def create_volume_score_scatter(df: pd.DataFrame, national_avg: float) -> go.Figure:
+    """Scatter plot: patient volume (denominator) vs SEP-1 score with trend line.
+
+    Answers: do hospitals that see more sepsis cases get better at treating it?
+    """
+    scored = df[df["score"].notna() & df["denominator"].notna()].copy()
+    if scored.empty:
+        return go.Figure()
+
+    colors = scored["score"].apply(
+        lambda s: _C["excellent"] if s >= 80 else (_C["moderate"] if s >= 50 else _C["poor"])
+    ).tolist()
+
+    fig = go.Figure()
+
+    # Subtle quadrant shading
+    x_max = float(scored["denominator"].max()) * 1.12
+    fig.add_shape(type="rect", x0=0, y0=80, x1=x_max, y1=105,
+                  fillcolor="rgba(46,204,113,0.05)", line_width=0, layer="below")
+    fig.add_shape(type="rect", x0=0, y0=0, x1=x_max, y1=50,
+                  fillcolor="rgba(231,76,60,0.06)", line_width=0, layer="below")
+
+    fig.add_trace(go.Scatter(
+        x=scored["denominator"],
+        y=scored["score"],
+        mode="markers",
+        marker=dict(
+            size=7,
+            color=colors,
+            opacity=0.72,
+            line=dict(width=0.5, color="rgba(255,255,255,0.25)"),
+        ),
+        text=_hover_text(scored),
+        hoverinfo="text",
+        name="Hospital",
+    ))
+
+    # OLS trend line
+    try:
+        x_vals = scored["denominator"].values.astype(float)
+        y_vals = scored["score"].values.astype(float)
+        z = np.polyfit(x_vals, y_vals, 1)
+        p = np.poly1d(z)
+        x_line = np.linspace(x_vals.min(), x_vals.max(), 200)
+        fig.add_trace(go.Scatter(
+            x=x_line, y=np.clip(p(x_line), 0, 100),
+            mode="lines",
+            line=dict(color=_C["ref_line"], width=2, dash="dot"),
+            name="Trend",
+            hoverinfo="skip",
+        ))
+    except Exception:
+        pass
+
+    for y_val, color, label, dash in [
+        (national_avg, _C["ref_line"], f"Natl avg {national_avg:.1f}%", "dash"),
+        (80, _C["excellent"], "80% threshold", "dot"),
+        (50, _C["poor"], "50% threshold", "dot"),
+    ]:
+        fig.add_hline(
+            y=y_val, line_dash=dash, line_color=color, line_width=1.2,
+            annotation_text=label, annotation_position="top right",
+            annotation_font=dict(color=color, size=10),
+        )
+
+    fig.update_layout(
+        title=dict(text="Patient Volume vs. SEP-1 Performance", font=dict(size=14)),
+        xaxis=dict(title="Patient Volume (Cases in Denominator)", gridcolor="#1e2535"),
+        yaxis=dict(title="SEP-1 Score (%)", range=[0, 105], gridcolor="#1e2535"),
+        template=_TEMPLATE,
+        height=400,
+        margin=dict(l=20, r=20, t=55, b=40),
+        paper_bgcolor=_TRANSPARENT,
+        plot_bgcolor=_TRANSPARENT,
+        showlegend=False,
+    )
+    return fig
+
+
+def create_state_disparity_chart(df: pd.DataFrame) -> go.Figure:
+    """Horizontal bar chart of within-state SEP-1 score spread (max − min).
+
+    High spread = hospitals in the same state deliver dramatically unequal care.
+    """
+    scored = df[df["score"].notna()]
+    if scored.empty:
+        return go.Figure()
+
+    agg = (
+        scored.groupby("state")["score"]
+        .agg(["min", "max", "count"])
+        .reset_index()
+    )
+    agg.columns = ["state", "min_score", "max_score", "n_hospitals"]
+    agg["spread"] = (agg["max_score"] - agg["min_score"]).round(1)
+    agg = agg[agg["n_hospitals"] >= 3].sort_values("spread")
+
+    if agg.empty:
+        return go.Figure()
+
+    colors = [
+        _C["poor"] if s >= 70 else (_C["moderate"] if s >= 40 else _C["excellent"])
+        for s in agg["spread"]
+    ]
+
+    fig = go.Figure(go.Bar(
+        x=agg["spread"],
+        y=agg["state"],
+        orientation="h",
+        marker_color=colors,
+        text=agg["spread"].apply(lambda x: f"{x:.0f} pp"),
+        textposition="outside",
+        customdata=agg[["max_score", "min_score"]].values,
+        hovertemplate=(
+            "<b>%{y}</b><br>"
+            "Best hospital: %{customdata[0]:.1f}%<br>"
+            "Worst hospital: %{customdata[1]:.1f}%<br>"
+            "Spread: %{x:.1f} pp<extra></extra>"
+        ),
+    ))
+
+    chart_height = min(max(350, len(agg) * 20), 1300)
+    max_x = float(agg["spread"].max())
+    fig.update_layout(
+        title=dict(text="Within-State Score Spread (Max − Min)", font=dict(size=14)),
+        xaxis=dict(
+            title="Score Range (percentage points)",
+            range=[0, max_x * 1.18],
+            gridcolor="#1e2535",
+        ),
+        yaxis_title=None,
+        template=_TEMPLATE,
+        height=chart_height,
+        margin=dict(l=20, r=70, t=55, b=40),
+        paper_bgcolor=_TRANSPARENT,
+        plot_bgcolor=_TRANSPARENT,
+        showlegend=False,
+    )
+    return fig
