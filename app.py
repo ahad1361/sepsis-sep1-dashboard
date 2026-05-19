@@ -301,7 +301,6 @@ def main() -> None:
             "National Average",
             f"{stats['national_avg']}%",
             "Simple avg — equal weight per hospital",
-            icon="📊",
             accent=natl_color,
         )
     with r1c2:
@@ -312,7 +311,6 @@ def main() -> None:
             "Volume-Weighted Avg",
             f"{w_avg}%",
             delta_str,
-            icon="⚖️",
             accent=_score_color(w_avg),
         )
     with r1c3:
@@ -320,7 +318,6 @@ def main() -> None:
             "Hospitals Reporting",
             f"{stats['reporting_hospitals']:,}",
             f"of {stats['total_hospitals']:,} in dataset",
-            icon="🏥",
             accent="#5b9bd5",
         )
 
@@ -333,7 +330,6 @@ def main() -> None:
             "Top State",
             stats["best_state"],
             f"{stats['best_score']}% avg",
-            icon="🥇",
             accent="#2ecc71",
         )
     with r2c2:
@@ -341,7 +337,6 @@ def main() -> None:
             "Lowest State",
             stats["worst_state"],
             f"{stats['worst_score']}% avg",
-            icon="⚠️",
             accent="#e74c3c",
         )
     with r2c3:
@@ -350,15 +345,23 @@ def main() -> None:
             "Est. Incomplete Bundles",
             f"~{missed:,}",
             "patient-episodes without full SEP-1",
-            icon="🚨",
             accent="#e67e22",
         )
 
     # ── map ───────────────────────────────────────────────────────────────────
-    _sec(
-        "Hospital Compliance Map",
-        "State shading = avg SEP-1 score · Dots = individual hospitals · Click any state to filter",
-    )
+    map_header_left, map_header_right = st.columns([5, 1])
+    with map_header_left:
+        _sec(
+            "Hospital Compliance Map",
+            "State shading = avg SEP-1 score · Dots = individual hospitals · Click a state to filter · Click again to reset",
+        )
+    with map_header_right:
+        if selected_states:
+            st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)
+            if st.button("Reset map", use_container_width=True):
+                st.session_state["state_filter"] = []
+                st.rerun()
+
     map_fig = create_hospital_map(filt, state_df, selected_states or None, min_sample)
     map_event = st.plotly_chart(
         map_fig,
@@ -367,7 +370,7 @@ def main() -> None:
         on_select="rerun",
     )
 
-    # Handle map click → update state filter
+    # Handle map click: clicking a new state filters to it; clicking the active state clears it
     try:
         pts = (map_event.selection or {}).get("points", [])
         for pt in pts:
@@ -376,9 +379,11 @@ def main() -> None:
                 cd = pt.get("customdata")
                 clicked = cd if isinstance(cd, str) else (cd[0] if isinstance(cd, (list, tuple)) and cd else None)
             if clicked and clicked in all_states:
-                if st.session_state["state_filter"] != [clicked]:
+                if st.session_state["state_filter"] == [clicked]:
+                    st.session_state["state_filter"] = []
+                else:
                     st.session_state["state_filter"] = [clicked]
-                    st.rerun()
+                st.rerun()
                 break
     except Exception:
         pass
