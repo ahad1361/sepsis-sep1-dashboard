@@ -27,6 +27,11 @@ CATEGORY_COLORS: dict[str, str] = {
 
 _TEMPLATE = "plotly_dark"
 _TRANSPARENT = "rgba(0,0,0,0)"
+_FONT = dict(family="Inter, -apple-system, BlinkMacSystemFont, sans-serif", color="#b0bec8", size=12)
+_TITLE_FONT = dict(family="Inter, -apple-system, BlinkMacSystemFont, sans-serif", color="#c8d5e0", size=14)
+_AXIS_FONT = dict(family="Inter, sans-serif", color="#506070", size=11)
+_GRID = "rgba(255,255,255,0.04)"
+_LINE = "rgba(255,255,255,0.07)"
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -167,20 +172,21 @@ def create_hospital_map(
     fig.update_layout(
         title=dict(
             text="Hospital SEP-1 Compliance — Click a state to filter",
-            font=dict(size=15),
+            font=dict(**_TITLE_FONT, size=15),
+            pad=dict(b=8),
         ),
         geo=dict(
             scope="usa",
             projection_type="albers usa",
             showland=True,
-            landcolor="#1a2035",
+            landcolor="#141e30",
             showlakes=True,
-            lakecolor="#0d1b2a",
+            lakecolor="#0a1520",
             showframe=False,
             showcoastlines=True,
-            coastlinecolor="#2d3748",
+            coastlinecolor="#263045",
             showsubunits=True,
-            subunitcolor="#2d3748",
+            subunitcolor="#263045",
             bgcolor=_TRANSPARENT,
         ),
         legend=dict(
@@ -189,13 +195,15 @@ def create_hospital_map(
             y=0.02,
             xanchor="right",
             x=0.98,
-            bgcolor="rgba(14,17,23,0.7)",
-            bordercolor="#2d3748",
+            bgcolor="rgba(10,14,24,0.82)",
+            bordercolor="rgba(255,255,255,0.08)",
             borderwidth=1,
+            font=dict(family="Inter, sans-serif", size=11, color="#8090a8"),
         ),
-        margin=dict(l=0, r=0, t=50, b=0),
+        margin=dict(l=0, r=0, t=52, b=0),
         template=_TEMPLATE,
         height=580,
+        font=_FONT,
         paper_bgcolor=_TRANSPARENT,
         plot_bgcolor=_TRANSPARENT,
     )
@@ -249,11 +257,20 @@ def create_state_bar_chart(state_df: pd.DataFrame, national_avg: float) -> go.Fi
 
     chart_height = min(max(380, len(df) * 22), 1400)
     fig.update_layout(
-        title=dict(text="State SEP-1 Average Compliance Rates", font=dict(size=14)),
-        xaxis=dict(title="Average SEP-1 Score (%)", range=[0, 108]),
+        title=dict(text="State SEP-1 Average Compliance Rates", font=_TITLE_FONT),
+        xaxis=dict(
+            title=dict(text="Average SEP-1 Score (%)", font=_AXIS_FONT),
+            tickfont=_AXIS_FONT,
+            range=[0, 108],
+            gridcolor=_GRID,
+            linecolor=_LINE,
+            ticksuffix="%",
+        ),
+        yaxis=dict(tickfont=dict(**_AXIS_FONT, size=10), linecolor=_LINE),
         yaxis_title=None,
         template=_TEMPLATE,
         height=chart_height,
+        font=_FONT,
         margin=dict(l=20, r=70, t=75, b=40),
         paper_bgcolor=_TRANSPARENT,
         plot_bgcolor=_TRANSPARENT,
@@ -296,14 +313,27 @@ def create_score_histogram(df: pd.DataFrame) -> go.Figure:
         )
 
     fig.update_layout(
+        title=dict(text="Distribution of Hospital SEP-1 Scores", font=_TITLE_FONT),
         template=_TEMPLATE,
         height=360,
+        font=_FONT,
         margin=dict(l=20, r=20, t=50, b=40),
         paper_bgcolor=_TRANSPARENT,
         plot_bgcolor=_TRANSPARENT,
         showlegend=False,
-        xaxis_title="SEP-1 Score (%)",
-        yaxis_title="Number of Hospitals",
+        xaxis=dict(
+            title=dict(text="SEP-1 Score (%)", font=_AXIS_FONT),
+            tickfont=_AXIS_FONT,
+            gridcolor=_GRID,
+            linecolor=_LINE,
+            ticksuffix="%",
+        ),
+        yaxis=dict(
+            title=dict(text="Number of Hospitals", font=_AXIS_FONT),
+            tickfont=_AXIS_FONT,
+            gridcolor=_GRID,
+            linecolor=_LINE,
+        ),
     )
     return fig
 
@@ -411,11 +441,24 @@ def create_volume_score_scatter(df: pd.DataFrame, national_avg: float) -> go.Fig
         )
 
     fig.update_layout(
-        title=dict(text="Patient Volume vs. SEP-1 Performance", font=dict(size=14)),
-        xaxis=dict(title="Patient Volume (Cases in Denominator)", gridcolor="#1e2535"),
-        yaxis=dict(title="SEP-1 Score (%)", range=[0, 105], gridcolor="#1e2535"),
+        title=dict(text="Patient Volume vs. SEP-1 Performance", font=_TITLE_FONT),
+        xaxis=dict(
+            title=dict(text="Patient Volume (Cases in Denominator)", font=_AXIS_FONT),
+            tickfont=_AXIS_FONT,
+            gridcolor=_GRID,
+            linecolor=_LINE,
+        ),
+        yaxis=dict(
+            title=dict(text="SEP-1 Score (%)", font=_AXIS_FONT),
+            tickfont=_AXIS_FONT,
+            range=[0, 105],
+            gridcolor=_GRID,
+            linecolor=_LINE,
+            ticksuffix="%",
+        ),
         template=_TEMPLATE,
         height=400,
+        font=_FONT,
         margin=dict(l=20, r=20, t=55, b=40),
         paper_bgcolor=_TRANSPARENT,
         plot_bgcolor=_TRANSPARENT,
@@ -469,15 +512,20 @@ def create_state_disparity_chart(df: pd.DataFrame) -> go.Figure:
     chart_height = min(max(350, len(agg) * 20), 1300)
     max_x = float(agg["spread"].max())
     fig.update_layout(
-        title=dict(text="Within-State Score Spread (Max − Min)", font=dict(size=14)),
+        title=dict(text="Within-State Score Spread (Max − Min)", font=_TITLE_FONT),
         xaxis=dict(
-            title="Score Range (percentage points)",
+            title=dict(text="Score Range (percentage points)", font=_AXIS_FONT),
+            tickfont=_AXIS_FONT,
             range=[0, max_x * 1.18],
-            gridcolor="#1e2535",
+            gridcolor=_GRID,
+            linecolor=_LINE,
+            ticksuffix=" pp",
         ),
+        yaxis=dict(tickfont=dict(**_AXIS_FONT, size=10), linecolor=_LINE),
         yaxis_title=None,
         template=_TEMPLATE,
         height=chart_height,
+        font=_FONT,
         margin=dict(l=20, r=70, t=55, b=40),
         paper_bgcolor=_TRANSPARENT,
         plot_bgcolor=_TRANSPARENT,
