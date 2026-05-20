@@ -33,29 +33,128 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
+    * { box-sizing: border-box; }
     [data-testid="stAppViewContainer"],
     [data-testid="stSidebar"],
-    .stMarkdown, .stDataFrame, h1, h2, h3, p, label {
-        font-family: 'Inter', sans-serif !important;
+    .stMarkdown, .stDataFrame, h1, h2, h3, p, label, div {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
     }
 
-    /* ── KPI cards ─────────────────────────────────────────── */
+    /* ── Custom scrollbar ─── */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2a3347; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3a4560; }
+
+    /* ── Sidebar ─── */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #0c1322 0%, #0e1528 100%) !important;
+        border-right: 1px solid rgba(91,155,213,0.12) !important;
+    }
+
+    /* ── Hero ─── */
+    .hero {
+        background: linear-gradient(135deg, #0e1828 0%, #131e36 45%, #0f1c2e 100%);
+        border: 1px solid rgba(91,155,213,0.13);
+        border-radius: 20px;
+        padding: 28px 32px 22px;
+        margin-bottom: 6px;
+        position: relative;
+        overflow: hidden;
+    }
+    .hero::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background:
+            radial-gradient(ellipse at 15% 50%, rgba(91,155,213,0.07) 0%, transparent 55%),
+            radial-gradient(ellipse at 80% 20%, rgba(46,204,113,0.05) 0%, transparent 50%);
+        pointer-events: none;
+    }
+    .hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        background: rgba(46,204,113,0.09);
+        border: 1px solid rgba(46,204,113,0.22);
+        border-radius: 100px;
+        padding: 4px 12px 4px 8px;
+        font-size: 0.68em;
+        color: #2ecc71;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 14px;
+    }
+    .hero-badge-dot {
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: #2ecc71;
+        box-shadow: 0 0 8px rgba(46,204,113,0.65);
+        animation: live-pulse 2.2s ease-in-out infinite;
+        flex-shrink: 0;
+    }
+    @keyframes live-pulse {
+        0%, 100% { opacity: 1; box-shadow: 0 0 8px rgba(46,204,113,0.65); }
+        50%       { opacity: 0.45; box-shadow: 0 0 3px rgba(46,204,113,0.25); }
+    }
+    .hero-title {
+        font-size: 2.2em;
+        font-weight: 900;
+        background: linear-gradient(130deg, #e8f0fa 0%, #c4d5ea 55%, #94b5d0 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin: 0 0 11px;
+        line-height: 1.15;
+        letter-spacing: -0.025em;
+    }
+    .hero-desc {
+        font-size: 0.82em;
+        color: #5e7288;
+        line-height: 1.68;
+        max-width: 780px;
+        margin: 0 0 16px;
+    }
+    .hero-desc b { color: #8097ae; font-weight: 600; }
+    .hero-desc a { color: #5b9bd5; text-decoration: none; }
+    .hero-desc a:hover { text-decoration: underline; }
+    .hero-tags {
+        display: flex;
+        gap: 7px;
+        flex-wrap: wrap;
+    }
+    .hero-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.07);
+        border-radius: 6px;
+        padding: 4px 10px;
+        font-size: 0.67em;
+        color: #445565;
+        font-weight: 500;
+        letter-spacing: 0.03em;
+    }
+
+    /* ── KPI cards ─── */
     .kpi-card {
-        background: linear-gradient(145deg, #161c2d 0%, #1c2340 100%);
-        border-radius: 14px;
-        padding: 18px 20px 16px;
+        background: linear-gradient(145deg, #111827 0%, #162035 100%);
+        border-radius: 16px;
+        padding: 20px 20px 16px;
         text-align: center;
-        border: 1px solid rgba(255,255,255,0.06);
-        min-height: 120px;
+        border: 1px solid rgba(255,255,255,0.07);
+        min-height: 128px;
         display: flex;
         flex-direction: column;
         justify-content: center;
         position: relative;
         overflow: hidden;
-        box-shadow: 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04);
-        transition: transform 0.18s ease, box-shadow 0.18s ease;
+        box-shadow: 0 4px 28px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05);
+        transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.22s ease;
     }
     .kpi-card::before {
         content: '';
@@ -63,87 +162,160 @@ st.markdown(
         top: 0; left: 0; right: 0;
         height: 3px;
         background: var(--kpi-accent, #5b9bd5);
-        border-radius: 14px 14px 0 0;
+        border-radius: 16px 16px 0 0;
     }
     .kpi-card::after {
         content: '';
         position: absolute;
-        inset: 0;
-        background: radial-gradient(ellipse at 50% -10%, rgba(255,255,255,0.05) 0%, transparent 65%);
+        top: -80px; left: 50%;
+        transform: translateX(-50%);
+        width: 180px; height: 180px;
+        border-radius: 50%;
+        background: var(--kpi-glow, radial-gradient(circle, rgba(91,155,213,0.09) 0%, transparent 70%));
         pointer-events: none;
     }
     .kpi-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 10px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
+        transform: translateY(-4px) scale(1.01);
+        box-shadow: 0 16px 44px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.08);
+        border-color: rgba(255,255,255,0.11);
     }
-    .kpi-icon  { font-size: 1.25em; line-height: 1; margin-bottom: 4px; }
+    .kpi-icon  { font-size: 1.25em; line-height: 1; margin-bottom: 5px; }
     .kpi-label {
-        font-size: 0.63em;
-        color: #7a8899;
+        font-size: 0.61em;
+        color: #637585;
         text-transform: uppercase;
-        letter-spacing: 0.13em;
+        letter-spacing: 0.14em;
         margin-bottom: 5px;
         font-weight: 600;
     }
     .kpi-value {
-        font-size: 2.1em;
+        font-size: 2.15em;
         font-weight: 800;
         color: var(--kpi-accent, #f0f4f8);
         line-height: 1.05;
         font-variant-numeric: tabular-nums;
+        letter-spacing: -0.025em;
     }
-    .kpi-sub { font-size: 0.66em; color: #4d5c70; margin-top: 5px; }
+    .kpi-sub { font-size: 0.64em; color: #394d5e; margin-top: 6px; font-weight: 500; }
 
-    /* ── Insight cards ────────────────────────────────────── */
+    /* ── Insight cards ─── */
     .insight-card {
-        background: linear-gradient(145deg, #161c2d 0%, #1c2340 100%);
+        background: linear-gradient(145deg, #111827 0%, #16203a 100%);
         border: 1px solid rgba(255,255,255,0.06);
         border-left: 3px solid var(--ins-accent, #5b9bd5);
-        border-radius: 12px;
-        padding: 18px 22px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+        border-radius: 14px;
+        padding: 20px 22px 18px;
+        box-shadow: 0 4px 22px rgba(0,0,0,0.35);
         height: 100%;
+        position: relative;
+        overflow: hidden;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .insight-card::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse at 0% 60%, var(--ins-glow, rgba(91,155,213,0.05)) 0%, transparent 55%);
+        pointer-events: none;
+    }
+    .insight-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgba(0,0,0,0.42);
     }
     .insight-eyebrow {
-        font-size: 0.62em;
-        color: #7a8899;
+        font-size: 0.60em;
+        color: #637585;
         text-transform: uppercase;
-        letter-spacing: 0.13em;
+        letter-spacing: 0.14em;
         font-weight: 600;
-        margin-bottom: 8px;
+        margin-bottom: 9px;
     }
     .insight-val {
-        font-size: 1.9em;
+        font-size: 1.85em;
         font-weight: 800;
         color: var(--ins-accent, #5b9bd5);
         line-height: 1.1;
-        margin-bottom: 8px;
+        margin-bottom: 9px;
         font-variant-numeric: tabular-nums;
+        letter-spacing: -0.025em;
     }
-    .insight-body {
-        font-size: 0.75em;
-        color: #5a6e82;
-        line-height: 1.6;
-    }
-    .insight-body b { color: #8a9ab0; }
+    .insight-body { font-size: 0.73em; color: #4a6070; line-height: 1.65; }
+    .insight-body b { color: #728898; font-weight: 600; }
 
-    /* ── Section headers ──────────────────────────────────── */
+    /* ── Section headers ─── */
     .sec-header {
-        border-bottom: 1px solid rgba(255,255,255,0.07);
-        padding-bottom: 10px;
-        margin: 28px 0 14px;
+        display: flex;
+        align-items: flex-start;
+        gap: 13px;
+        padding: 14px 0 12px;
+        margin: 28px 0 15px;
+        border-bottom: 1px solid rgba(255,255,255,0.055);
     }
-    .sec-header h3 {
-        font-size: 1.0em;
+    .sec-icon {
+        width: 32px; height: 32px;
+        border-radius: 9px;
+        background: rgba(91,155,213,0.09);
+        border: 1px solid rgba(91,155,213,0.16);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1em;
+        flex-shrink: 0;
+        margin-top: 2px;
+    }
+    .sec-body h3 {
+        font-size: 1.02em;
         font-weight: 700;
-        color: #c8d3e0;
-        letter-spacing: 0.03em;
-        margin: 0 0 2px;
+        color: #cdd8e8;
+        letter-spacing: 0.01em;
+        margin: 0 0 3px;
     }
-    .sec-header p {
-        font-size: 0.75em;
-        color: #4d5c70;
-        margin: 0;
+    .sec-body p { font-size: 0.72em; color: #42536a; margin: 0; line-height: 1.55; }
+
+    /* ── Sidebar branding ─── */
+    .sidebar-brand {
+        text-align: center;
+        padding: 2px 0 20px;
+        border-bottom: 1px solid rgba(255,255,255,0.055);
+        margin-bottom: 20px;
+    }
+    .sidebar-brand-icon {
+        font-size: 2.8em;
+        display: block;
+        margin-bottom: 6px;
+        filter: drop-shadow(0 0 14px rgba(46,204,113,0.32));
+    }
+    .sidebar-brand-name {
+        font-size: 0.78em;
+        font-weight: 800;
+        color: #bccad8;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        margin-bottom: 2px;
+    }
+    .sidebar-brand-sub { font-size: 0.60em; color: #374d5e; font-weight: 500; }
+    .sidebar-stat-box {
+        background: rgba(91,155,213,0.055);
+        border: 1px solid rgba(91,155,213,0.10);
+        border-radius: 10px;
+        padding: 12px 14px;
+    }
+    .sidebar-stat-label {
+        font-size: 0.60em;
+        color: #374d5e;
+        text-transform: uppercase;
+        letter-spacing: 0.10em;
+        font-weight: 600;
+        margin-bottom: 3px;
+    }
+    .sidebar-stat-value { font-size: 0.84em; font-weight: 700; color: #6a9fc0; }
+
+    /* ── Fancy divider ─── */
+    hr.fancy-divider {
+        height: 1px !important;
+        background: linear-gradient(90deg, transparent, rgba(91,155,213,0.22), rgba(46,204,113,0.16), transparent) !important;
+        border: none !important;
+        margin: 22px 0 18px !important;
     }
     </style>
     """,
@@ -166,10 +338,55 @@ def _score_color(score: float) -> str:
     return "#e74c3c"
 
 
+_GLOW_MAP = {
+    "#2ecc71": "radial-gradient(circle, rgba(46,204,113,0.12) 0%, transparent 70%)",
+    "#27ae60": "radial-gradient(circle, rgba(39,174,96,0.12) 0%, transparent 70%)",
+    "#e74c3c": "radial-gradient(circle, rgba(231,76,60,0.12) 0%, transparent 70%)",
+    "#f39c12": "radial-gradient(circle, rgba(243,156,18,0.11) 0%, transparent 70%)",
+    "#e67e22": "radial-gradient(circle, rgba(230,126,34,0.11) 0%, transparent 70%)",
+    "#5b9bd5": "radial-gradient(circle, rgba(91,155,213,0.10) 0%, transparent 70%)",
+}
+_INS_GLOW_MAP = {
+    "#2ecc71": "rgba(46,204,113,0.06)",
+    "#27ae60": "rgba(39,174,96,0.06)",
+    "#e74c3c": "rgba(231,76,60,0.06)",
+    "#f39c12": "rgba(243,156,18,0.06)",
+    "#e67e22": "rgba(230,126,34,0.06)",
+    "#5b9bd5": "rgba(91,155,213,0.06)",
+}
+
+
+def _hero() -> None:
+    st.markdown(
+        """<div class="hero">
+             <div class="hero-badge">
+               <span class="hero-badge-dot"></span>
+               CMS Care Compare &nbsp;·&nbsp; Updated Quarterly
+             </div>
+             <h1 class="hero-title">SEP-1 Sepsis Quality Tracker</h1>
+             <p class="hero-desc">
+               <b>SEP-1</b> (Early Management Bundle for Severe Sepsis/Septic Shock) tracks whether hospitals
+               deliver antibiotics, blood cultures, and IV fluids <b>within 3 hours</b> of sepsis onset.
+               CMS incorporates SEP-1 compliance into its Value-Based Purchasing program — hospitals scoring
+               below benchmarks face Medicare reimbursement penalties.
+               &nbsp;<a href="https://data.cms.gov/provider-data/dataset/f31ab9d1-e7fb-4ea8-aff2-e00bdfa7cef3" target="_blank">Source: CMS Care Compare →</a>
+             </p>
+             <div class="hero-tags">
+               <span class="hero-tag">⚕️ Healthcare Quality</span>
+               <span class="hero-tag">🏛️ CMS Value-Based Purchasing</span>
+               <span class="hero-tag">🩺 Sepsis Protocol</span>
+               <span class="hero-tag">📡 Live Data</span>
+             </div>
+           </div>""",
+        unsafe_allow_html=True,
+    )
+
+
 def _kpi(label: str, value: str, sub: str = "", icon: str = "", accent: str = "#5b9bd5") -> None:
+    glow = _GLOW_MAP.get(accent, _GLOW_MAP["#5b9bd5"])
     icon_html = f'<div class="kpi-icon">{icon}</div>' if icon else ""
     st.markdown(
-        f"""<div class="kpi-card" style="--kpi-accent:{accent}">
+        f"""<div class="kpi-card" style="--kpi-accent:{accent};--kpi-glow:{glow}">
               {icon_html}
               <div class="kpi-label">{label}</div>
               <div class="kpi-value">{value}</div>
@@ -180,8 +397,9 @@ def _kpi(label: str, value: str, sub: str = "", icon: str = "", accent: str = "#
 
 
 def _insight(eyebrow: str, value: str, body: str, accent: str = "#5b9bd5") -> None:
+    glow = _INS_GLOW_MAP.get(accent, _INS_GLOW_MAP["#5b9bd5"])
     st.markdown(
-        f"""<div class="insight-card" style="--ins-accent:{accent}">
+        f"""<div class="insight-card" style="--ins-accent:{accent};--ins-glow:{glow}">
               <div class="insight-eyebrow">{eyebrow}</div>
               <div class="insight-val">{value}</div>
               <div class="insight-body">{body}</div>
@@ -190,10 +408,11 @@ def _insight(eyebrow: str, value: str, body: str, accent: str = "#5b9bd5") -> No
     )
 
 
-def _sec(title: str, subtitle: str = "") -> None:
+def _sec(title: str, subtitle: str = "", icon: str = "") -> None:
+    icon_html = f'<div class="sec-icon">{icon}</div>' if icon else ""
     sub_html = f"<p>{subtitle}</p>" if subtitle else ""
     st.markdown(
-        f'<div class="sec-header"><h3>{title}</h3>{sub_html}</div>',
+        f'<div class="sec-header">{icon_html}<div class="sec-body"><h3>{title}</h3>{sub_html}</div></div>',
         unsafe_allow_html=True,
     )
 
@@ -201,16 +420,7 @@ def _sec(title: str, subtitle: str = "") -> None:
 # ── app ───────────────────────────────────────────────────────────────────────
 def main() -> None:
     # ── header ────────────────────────────────────────────────────────────────
-    st.title("🏥 SEP-1 Sepsis Hospital Quality Tracker")
-    st.markdown(
-        """
-        **SEP-1** (Early Management Bundle for Severe Sepsis/Septic Shock) tracks whether hospitals
-        deliver antibiotics, blood cultures, and IV fluids **within 3 hours** of sepsis onset.
-        CMS incorporates SEP-1 compliance into its Value-Based Purchasing program — hospitals scoring
-        below benchmarks face Medicare reimbursement penalties.
-        *Source: [CMS Care Compare – Timely and Effective Care](https://data.cms.gov/provider-data/dataset/f31ab9d1-e7fb-4ea8-aff2-e00bdfa7cef3)*
-        """
-    )
+    _hero()
 
     # ── load data ─────────────────────────────────────────────────────────────
     try:
@@ -234,6 +444,14 @@ def main() -> None:
 
     # ── sidebar ───────────────────────────────────────────────────────────────
     with st.sidebar:
+        st.markdown(
+            """<div class="sidebar-brand">
+                 <span class="sidebar-brand-icon">🏥</span>
+                 <div class="sidebar-brand-name">SEP-1 Tracker</div>
+                 <div class="sidebar-brand-sub">CMS Care Compare Data</div>
+               </div>""",
+            unsafe_allow_html=True,
+        )
         st.header("Filters")
 
         selected_states: list[str] = st.multiselect(
@@ -265,15 +483,20 @@ def main() -> None:
             help="Exclude hospitals with fewer sepsis cases than this threshold.",
         )
 
-        st.markdown("---")
+        st.markdown('<hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:8px 0 14px"/>', unsafe_allow_html=True)
         reporting_pct = (
             round(stats["reporting_hospitals"] / stats["total_hospitals"] * 100, 1)
             if stats["total_hospitals"] > 0
             else 0.0
         )
-        st.caption(
-            f"**{stats['reporting_hospitals']:,}** of **{stats['total_hospitals']:,}** hospitals "
-            f"reporting ({reporting_pct}%)"
+        st.markdown(
+            f"""<div class="sidebar-stat-box">
+                  <div class="sidebar-stat-label">Dataset Coverage</div>
+                  <div class="sidebar-stat-value">{stats['reporting_hospitals']:,} / {stats['total_hospitals']:,}</div>
+                  <div class="sidebar-stat-label" style="margin-top:8px">Reporting Rate</div>
+                  <div class="sidebar-stat-value">{reporting_pct}%</div>
+                </div>""",
+            unsafe_allow_html=True,
         )
 
     # ── apply filters ─────────────────────────────────────────────────────────
@@ -293,7 +516,7 @@ def main() -> None:
     filt_states = state_df[state_df["state"].isin(filt["state"].unique())]
 
     # ── KPI row 1 ─────────────────────────────────────────────────────────────
-    _sec("National Overview")
+    _sec("National Overview", icon="📊")
     r1c1, r1c2, r1c3 = st.columns(3)
     natl_color = _score_color(stats["national_avg"])
     with r1c1:
@@ -354,6 +577,7 @@ def main() -> None:
         _sec(
             "Hospital Compliance Map",
             "State shading = avg SEP-1 score · Dots = individual hospitals · Click a state to filter · Click again to reset",
+            icon="🗺️",
         )
     with map_header_right:
         if selected_states:
@@ -389,7 +613,7 @@ def main() -> None:
         pass
 
     # ── performance charts ────────────────────────────────────────────────────
-    _sec("Performance Distribution")
+    _sec("Performance Distribution", icon="📈")
     chart_col, hist_col = st.columns([3, 2])
     with chart_col:
         st.plotly_chart(
@@ -403,6 +627,7 @@ def main() -> None:
     _sec(
         "Deep Dive",
         "Volume vs performance · Within-state inequality",
+        icon="🔬",
     )
     dd_left, dd_right = st.columns(2)
     with dd_left:
@@ -420,6 +645,7 @@ def main() -> None:
     _sec(
         "Clinical Insights",
         "Non-obvious findings derived from the data",
+        icon="💡",
     )
     ins1, ins2, ins3 = st.columns(3)
 
@@ -498,7 +724,7 @@ def main() -> None:
         )
 
     # ── rankings ──────────────────────────────────────────────────────────────
-    _sec("Hospital Rankings")
+    _sec("Hospital Rankings", icon="🏆")
     tab_top, tab_bottom, tab_method = st.tabs(
         ["🏆 Top 10", "⚠️ Bottom 10", "📋 Methodology"]
     )
@@ -561,7 +787,7 @@ def main() -> None:
         )
 
     # ── export ────────────────────────────────────────────────────────────────
-    st.markdown("---")
+    st.markdown('<hr class="fancy-divider"/>', unsafe_allow_html=True)
     export_cols = [
         c for c in
         ["facility_id", "facility_name", "city", "state", "zip_code",
